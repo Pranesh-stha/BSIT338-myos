@@ -1,0 +1,1 @@
+Hello from a file on the dhokaOS disk! If you can read this, the FAT driver works.

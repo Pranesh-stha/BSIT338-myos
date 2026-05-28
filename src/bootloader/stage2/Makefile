@@ -5,7 +5,7 @@ CC16=/root/watcom/binl64/wcc
 LD16=/root/watcom/binl64/wlink
 
 ASMFLAGS=-f obj
-CFLAGS=-4 -d3 -s -wx -ms -zl -q
+CFLAGS=-4 -d3 -s -wx -ms -zl -za99 -q
 LDFLAGS=
 
 SOURCES_C=$(wildcard *.c)

@@ -1,2 +1,0 @@
-main.c(4): Warning! W303: Parameter 'bootDrive' has been defined, but not referenced
-main.c(17): Warning! W118: Label 'end' has been defined but not referenced

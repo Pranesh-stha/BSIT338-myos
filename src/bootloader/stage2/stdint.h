@@ -14,3 +14,10 @@ typedef uint8_t             bool;
 
 #define true                1
 #define false               0
+
+#ifndef NULL
+#define NULL                ((void*)0)
+#endif
+
+#define min(a, b)           ((a) < (b) ? (a) : (b))
+#define max(a, b)           ((a) > (b) ? (a) : (b))
