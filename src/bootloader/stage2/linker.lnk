@@ -1,0 +1,10 @@
+format raw bin
+option quiet
+option nodefaultlibs
+option start=entry
+option verbose
+option offset=0
+option stack=4096
+order
+    clname CODE segment _ENTRY
+    clname DATA
