@@ -3,7 +3,7 @@
 
 void _cdecl cstart_(uint16_t bootDrive)
 {
-    puts("Hello world from C!\r\n");
+    puts("dhokaOS bootloader (stage 2)\r\n");
 
     printf("Formatted %s: %% %c %d %i\r\n", "string", 'a', 1234, -5678);
     printf("16-bit hex: %x %x %x\r\n", 0xbeef, 0xcafe, 0x1234);
