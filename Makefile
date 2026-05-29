@@ -1,13 +1,10 @@
-ASM=nasm
+include build_scripts/config.mk
 
-BUILD_DIR=build
-SRC_DIR=src
+SRC_DIR := src
 
-.PHONY: all floppy_image kernel bootloader stage1 stage2 clean always
+.PHONY: all floppy_image kernel bootloader stage1 stage2 clean always run
 
 all: floppy_image
-
-include build.mk
 
 #
 # Floppy image
@@ -30,12 +27,12 @@ bootloader: stage1 stage2
 stage1: $(BUILD_DIR)/stage1.bin
 
 $(BUILD_DIR)/stage1.bin: always
-	$(MAKE) -C $(SRC_DIR)/bootloader/stage1 BUILD_DIR=$(abspath $(BUILD_DIR))
+	$(MAKE) -C $(SRC_DIR)/bootloader/stage1
 
 stage2: $(BUILD_DIR)/stage2.bin
 
 $(BUILD_DIR)/stage2.bin: always
-	$(MAKE) -C $(SRC_DIR)/bootloader/stage2 BUILD_DIR=$(abspath $(BUILD_DIR))
+	$(MAKE) -C $(SRC_DIR)/bootloader/stage2
 
 #
 # Kernel
@@ -43,7 +40,7 @@ $(BUILD_DIR)/stage2.bin: always
 kernel: $(BUILD_DIR)/kernel.bin
 
 $(BUILD_DIR)/kernel.bin: always
-	$(MAKE) -C $(SRC_DIR)/kernel BUILD_DIR=$(abspath $(BUILD_DIR))
+	$(MAKE) -C $(SRC_DIR)/kernel
 
 #
 # Always
@@ -55,9 +52,9 @@ always:
 # Clean
 #
 clean:
-	$(MAKE) -C $(SRC_DIR)/bootloader/stage1 BUILD_DIR=$(abspath $(BUILD_DIR)) clean
-	$(MAKE) -C $(SRC_DIR)/bootloader/stage2 BUILD_DIR=$(abspath $(BUILD_DIR)) clean
-	$(MAKE) -C $(SRC_DIR)/kernel BUILD_DIR=$(abspath $(BUILD_DIR)) clean
+	$(MAKE) -C $(SRC_DIR)/bootloader/stage1 clean
+	$(MAKE) -C $(SRC_DIR)/bootloader/stage2 clean || true
+	$(MAKE) -C $(SRC_DIR)/kernel clean
 	rm -rf $(BUILD_DIR)/*
 
 #
