@@ -41,9 +41,10 @@ entry:
     mov gs, ax
 
     ; --- set 32-bit stack ---
-    ; Must NOT leave SP near 0 — it will wrap to 0xFFFFFFFF on push
-    ; (this is the bug nanobyte hit in the stream — pre-fixed here)
-    mov esp, 0x90000            ; safe high-ish stack below 1 MB
+    ; Must be non-zero (avoid push-wrap) AND below 64KB, so the real-mode
+    ; BIOS wrapper functions can read their args via [bp+N] with SS=0
+    ; (in 16-bit mode bp is only the low 16 bits of ebp).
+    mov esp, 0xFFF0
     mov ebp, esp
 
     ; --- zero out BSS section ---
