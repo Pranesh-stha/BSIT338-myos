@@ -1,5 +1,5 @@
 #include "stdio.h"
-#include "x86.h"
+#include "arch/i686/io.h"
 #include <stdarg.h>
 #include <stdbool.h>
 
@@ -47,12 +47,12 @@ static void setcursor(int x, int y)
     int pos = y * SCREEN_WIDTH + x;
 
     // Set low byte of cursor position
-    outb(0x3D4, 0x0F);
-    outb(0x3D5, (uint8_t)(pos & 0xFF));
+    i686_outb(0x3D4, 0x0F);
+    i686_outb(0x3D5, (uint8_t)(pos & 0xFF));
 
     // Set high byte of cursor position
-    outb(0x3D4, 0x0E);
-    outb(0x3D5, (uint8_t)((pos >> 8) & 0xFF));
+    i686_outb(0x3D4, 0x0E);
+    i686_outb(0x3D5, (uint8_t)((pos >> 8) & 0xFF));
 }
 
 
