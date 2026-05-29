@@ -15,3 +15,6 @@ typedef uint32_t           size_t;
 #ifndef NULL
 #define NULL ((void*)0)
 #endif
+
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+#define max(a, b) (((a) > (b)) ? (a) : (b))
