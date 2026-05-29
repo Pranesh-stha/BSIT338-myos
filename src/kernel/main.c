@@ -13,7 +13,7 @@ void __attribute__((section(".entry"))) start()
     HAL_Initialize();
 
     clrscr();
-    printf("Hello from kernel!!!\r\n");
+    printf("Hello from kernel - GDT + IDT up!\r\n");
 
     for (;;);
 }
