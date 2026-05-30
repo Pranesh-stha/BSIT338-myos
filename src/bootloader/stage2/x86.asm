@@ -196,6 +196,92 @@ x86_Disk_GetDriveParams:
 
 
 ; ============================================================
+; int __attribute__((cdecl)) x86_E820GetNextBlock(
+;     E820MemoryBlock* block, uint32_t* continuationId);
+;
+; Calls BIOS int 0x15 / EAX=0xE820 to walk the system memory map.
+; Returns: number of bytes BIOS wrote (20 or 24) on success, -1 on failure.
+; On the first call pass *continuationId == 0; the BIOS writes a new value
+; that must be passed back unchanged on the next call. When BIOS writes
+; 0 back, the walk is finished.
+;
+; Implementation notes:
+;  - x86_EnterProtectedMode is called only once. Calling it twice in the
+;    same function would redefine its internal .pmode local label.
+;  - LinearToSegOffset's intermediary register must differ from its input
+;    register, since the macro mutates the intermediary between its two
+;    reads of the input. We use edx as the intermediary here.
+;  - ebx (continuation) and ecx (return size) survive the mode switches
+;    because x86_EnterProtectedMode only clobbers eax.
+; ============================================================
+E820_SMAP_SIGNATURE equ 0x534D4150     ; 'SMAP'
+
+global x86_E820GetNextBlock
+x86_E820GetNextBlock:
+    [bits 32]
+    push ebp
+    mov ebp, esp
+    push ebx
+    push ecx
+    push edx
+    push esi
+    push edi
+
+    ; Read args while still in 32-bit pmode
+    mov esi, [ebp + 12]         ; arg2: pointer to continuation ID
+    mov ebx, [esi]              ; ebx = *continuationId (passed to BIOS)
+    mov eax, [ebp + 8]          ; arg1: pointer to E820MemoryBlock (linear)
+
+    push eax                    ; stash block pointer across the mode switch
+
+    x86_EnterRealMode
+
+    [bits 16]
+
+    pop eax                     ; recover block pointer
+    ; LinearToSegOffset macro's %4 must be 32-bit (final 'mov %4, %3' is
+    ; r32,r32). BIOS reads DI as the low 16 of EDI, so edi works fine.
+    LinearToSegOffset eax, es, edx, edi  ; intermediary = edx (NOT eax)
+
+    mov eax, 0xE820
+    mov edx, E820_SMAP_SIGNATURE
+    mov ecx, 24                 ; ask for the 24-byte form
+
+    int 0x15
+
+    jc .e820_failed             ; CF set => error
+    cmp eax, E820_SMAP_SIGNATURE
+    je  .e820_after_bios        ; BIOS echoed 'SMAP' => success
+
+.e820_failed:
+    xor ebx, ebx                ; continuation = 0 (caller stops looping)
+    mov ecx, -1                 ; size = -1 (caller's loop sees as error)
+
+.e820_after_bios:
+    ; Both success and failure paths reach here with:
+    ;   ebx = continuation to return, ecx = size-or-error to return
+    x86_EnterProtectedMode      ; only one expansion of this macro
+
+    [bits 32]
+
+    ; Write continuation back through the pointer arg
+    mov eax, [ebp + 12]
+    mov [eax], ebx
+
+    ; Set return value
+    mov eax, ecx
+
+    pop edi
+    pop esi
+    pop edx
+    pop ecx
+    pop ebx
+    mov esp, ebp
+    pop ebp
+    ret
+
+
+; ============================================================
 ; bool _cdecl x86_Disk_Reset(uint8_t drive)
 ; ============================================================
 global x86_Disk_Reset

@@ -2,7 +2,7 @@
 # All toolchain vars (TARGET_CC, TARGET_CFLAGS, etc.) come from config.mk
 # via the top-level Makefile's `export`.
 
-TARGET_CFLAGS   += -I.
+TARGET_CFLAGS   += -I. -I../libs
 TARGET_LDFLAGS  += -T linker.ld -nostdlib
 
 # ----- Generated ISR stubs ------------------------------------------------
