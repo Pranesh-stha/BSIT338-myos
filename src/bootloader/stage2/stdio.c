@@ -160,7 +160,7 @@ void puts(const char* str)
 
 static const char g_HexChars[] = "0123456789abcdef";
 
-static void printf_unsigned(unsigned long long number, int radix)
+static void printf_unsigned(unsigned long long number, int radix, int width, bool zero_pad)
 {
     char buffer[32];
     int  pos = 0;
@@ -172,18 +172,45 @@ static void printf_unsigned(unsigned long long number, int radix)
         buffer[pos++] = g_HexChars[rem];
     } while (number > 0);
 
+    // Pad to width — append to buffer; printing happens top-down so
+    // these end up as the leading characters of the output.
+    char pad = zero_pad ? '0' : ' ';
+    while (pos < width && pos < 32)
+        buffer[pos++] = pad;
+
     // Print in correct order
     while (--pos >= 0)
         putc(buffer[pos]);
 }
 
-static void printf_signed(long long number, int radix)
+static void printf_signed(long long number, int radix, int width, bool zero_pad)
 {
+    bool negative = false;
     if (number < 0) {
-        putc('-');
-        printf_unsigned((unsigned long long)(-number), radix);
+        negative = true;
+        number = -number;
+    }
+
+    char buffer[32];
+    int  pos = 0;
+    do {
+        unsigned long long rem = (unsigned long long)number % radix;
+        number /= radix;
+        buffer[pos++] = g_HexChars[rem];
+    } while (number > 0);
+
+    int total_chars = pos + (negative ? 1 : 0);
+
+    if (zero_pad) {
+        // sign first, then zero padding, then digits: "-0042"
+        if (negative) putc('-');
+        while (total_chars < width) { putc('0'); total_chars++; }
+        while (--pos >= 0) putc(buffer[pos]);
     } else {
-        printf_unsigned((unsigned long long)number, radix);
+        // spaces first, then sign, then digits: "  -42"
+        while (total_chars < width) { putc(' '); total_chars++; }
+        if (negative) putc('-');
+        while (--pos >= 0) putc(buffer[pos]);
     }
 }
 
@@ -198,6 +225,8 @@ void printf(const char* fmt, ...)
     int radix  = 10;
     bool sign  = false;
     bool number = false;
+    int  width = 0;
+    bool zero_pad = false;
 
     while (*fmt) {
         switch (state) {
@@ -213,6 +242,16 @@ void printf(const char* fmt, ...)
                 break;
 
             case PRINTF_STATE_LENGTH:
+                // zero-pad flag: a leading '0' before any width digits
+                if (*fmt == '0' && width == 0) {
+                    zero_pad = true;
+                    break;
+                }
+                // width digits
+                if (*fmt >= '0' && *fmt <= '9') {
+                    width = width * 10 + (*fmt - '0');
+                    break;
+                }
                 switch (*fmt) {
                     case 'h':
                         length = PRINTF_LENGTH_SHORT;
@@ -289,13 +328,13 @@ void printf(const char* fmt, ...)
                             case PRINTF_LENGTH_SHORT_SHORT:
                             case PRINTF_LENGTH_SHORT:
                             case PRINTF_LENGTH_DEFAULT:
-                                printf_signed(va_arg(args, int), radix);
+                                printf_signed(va_arg(args, int), radix, width, zero_pad);
                                 break;
                             case PRINTF_LENGTH_LONG:
-                                printf_signed(va_arg(args, long), radix);
+                                printf_signed(va_arg(args, long), radix, width, zero_pad);
                                 break;
                             case PRINTF_LENGTH_LONG_LONG:
-                                printf_signed(va_arg(args, long long), radix);
+                                printf_signed(va_arg(args, long long), radix, width, zero_pad);
                                 break;
                         }
                     } else {
@@ -303,13 +342,13 @@ void printf(const char* fmt, ...)
                             case PRINTF_LENGTH_SHORT_SHORT:
                             case PRINTF_LENGTH_SHORT:
                             case PRINTF_LENGTH_DEFAULT:
-                                printf_unsigned(va_arg(args, unsigned int), radix);
+                                printf_unsigned(va_arg(args, unsigned int), radix, width, zero_pad);
                                 break;
                             case PRINTF_LENGTH_LONG:
-                                printf_unsigned(va_arg(args, unsigned long), radix);
+                                printf_unsigned(va_arg(args, unsigned long), radix, width, zero_pad);
                                 break;
                             case PRINTF_LENGTH_LONG_LONG:
-                                printf_unsigned(va_arg(args, unsigned long long), radix);
+                                printf_unsigned(va_arg(args, unsigned long long), radix, width, zero_pad);
                                 break;
                         }
                     }
@@ -321,6 +360,8 @@ void printf(const char* fmt, ...)
                 radix  = 10;
                 sign   = false;
                 number = false;
+                width  = 0;
+                zero_pad = false;
                 break;
         }
 
