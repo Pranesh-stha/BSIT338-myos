@@ -114,6 +114,15 @@ void putc(char c)
                 putc(' ');
             break;
 
+        case '\b':
+            // Backspace: step left and erase the cell.
+            // Clamped at column 0; doesn't wrap to previous row.
+            if (g_ScreenX > 0) {
+                g_ScreenX--;
+                putchr(g_ScreenX, g_ScreenY, ' ');
+            }
+            break;
+
         default:
             putchr(g_ScreenX, g_ScreenY, c);
             g_ScreenX++;
