@@ -8,6 +8,7 @@
 #include "scheduler.h"
 #include "matrix.h"
 #include "mandel.h"
+#include "snake.h"
 
 #define LINE_MAX 128
 #define CTRL_C   0x03
@@ -218,6 +219,24 @@ static void cmd_mouse(void)
     set_color(VGA_DEFAULT);
 }
 
+static void cmd_snake(void)
+{
+    set_color(VGA_COLOR(COLOR_LIGHT_GREEN, COLOR_BLACK));
+    printf("Starting snake. WASD to move, Ctrl+C to quit.\r\n");
+    set_color(VGA_DEFAULT);
+    i686_PIT_Sleep(400);
+
+    Snake_Run();
+
+    while (i686_Keyboard_HasKey())
+        i686_Keyboard_GetChar();
+
+    clrscr();
+    set_color(VGA_COLOR(COLOR_LIGHT_GREEN, COLOR_BLACK));
+    printf("Snake exited.\r\n");
+    set_color(VGA_DEFAULT);
+}
+
 static void cmd_help(void)
 {
     set_color(VGA_COLOR(COLOR_LIGHT_CYAN, COLOR_BLACK));
@@ -229,6 +248,7 @@ static void cmd_help(void)
     printf("  mouse   - live mouse coords with on-screen cursor (Ctrl+C)\r\n");
     printf("  matrix  - falling-text screensaver (Ctrl+C to stop)\r\n");
     printf("  mandel  - render Mandelbrot set; press any key to dismiss\r\n");
+    printf("  snake   - play snake (WASD to move, Ctrl+C to quit)\r\n");
     printf("  clear   - clear the screen\r\n");
     printf("  help    - this message\r\n");
 }
@@ -242,6 +262,7 @@ static void exec(const char* line)
     if (streq(line, "mouse"))  { cmd_mouse();  return; }
     if (streq(line, "matrix")) { cmd_matrix(); return; }
     if (streq(line, "mandel")) { cmd_mandel(); return; }
+    if (streq(line, "snake"))  { cmd_snake();  return; }
     if (streq(line, "clear"))  { clrscr();     return; }
     if (streq(line, "help"))   { cmd_help();   return; }
 
