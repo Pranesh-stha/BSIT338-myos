@@ -1,8 +1,10 @@
 #include "shell.h"
+#include "stdint.h"
 #include "stdio.h"
 #include "arch/i686/keyboard.h"
 #include "arch/i686/pit.h"
 #include "pmm.h"
+#include "scheduler.h"
 
 #define LINE_MAX 128
 
@@ -11,6 +13,26 @@ static int streq(const char* a, const char* b)
 {
     while (*a && *b && *a == *b) { a++; b++; }
     return *a == 0 && *b == 0;
+}
+
+// =====================================================
+// Multitasking demo tasks. Each prints its letter at a different
+// cadence so you can see preemptive scheduling interleave them.
+// =====================================================
+
+static void taskA(void)
+{
+    for (;;) { printf("A"); i686_PIT_Sleep(500); }
+}
+
+static void taskB(void)
+{
+    for (;;) { printf("B"); i686_PIT_Sleep(700); }
+}
+
+static void taskC(void)
+{
+    for (;;) { printf("C"); i686_PIT_Sleep(1000); }
 }
 
 // =====================================================
@@ -34,20 +56,61 @@ static void cmd_mem(void)
     PMM_PrintStats();
 }
 
+#define CTRL_C   0x03   // ASCII ETX - what our keyboard driver emits for Ctrl+C
+
+static void cmd_multi(void)
+{
+    if (Scheduler_CreateTask(taskA) == NULL ||
+        Scheduler_CreateTask(taskB) == NULL ||
+        Scheduler_CreateTask(taskC) == NULL)
+    {
+        printf("Failed to allocate task stacks.\r\n");
+        Scheduler_StopAndReset();
+        return;
+    }
+
+    printf("Multitasking demo: 3 background tasks running.\r\n");
+    printf("Press Ctrl+C to stop.\r\n");
+
+    Scheduler_Start();   // enables preemption; PIT will now switch tasks
+
+    // Run forever until the user hits Ctrl+C. Other keystrokes are
+    // silently consumed (no echo) so they don't muddle the demo output.
+    for (;;)
+    {
+        if (i686_Keyboard_HasKey())
+        {
+            char c = i686_Keyboard_GetChar();
+            if (c == CTRL_C) break;
+        }
+        // body otherwise idle; PIT preempts us to A/B/C every tick
+    }
+
+    Scheduler_StopAndReset();
+
+    // Drain any remaining queued keys so they don't dump onto the next prompt.
+    while (i686_Keyboard_HasKey())
+        i686_Keyboard_GetChar();
+
+    printf("\r\n^C  Demo stopped.\r\n");
+}
+
 static void cmd_help(void)
 {
     printf("Commands:\r\n");
-    printf("  time   - run a 5-second PIT timer test\r\n");
+    printf("  time   - 5-second PIT timer test\r\n");
     printf("  mem    - print PMM stats\r\n");
+    printf("  multi  - multitasking demo (A/B/C tasks, Ctrl+C to stop)\r\n");
     printf("  clear  - clear the screen\r\n");
     printf("  help   - this message\r\n");
 }
 
 static void exec(const char* line)
 {
-    if (line[0] == 0)            return;        // empty line
+    if (line[0] == 0)            return;
     if (streq(line, "time"))   { cmd_time();  return; }
     if (streq(line, "mem"))    { cmd_mem();   return; }
+    if (streq(line, "multi"))  { cmd_multi(); return; }
     if (streq(line, "clear"))  { clrscr();    return; }
     if (streq(line, "help"))   { cmd_help();  return; }
     printf("unknown command: %s  (type 'help')\r\n", line);
@@ -84,14 +147,14 @@ void Shell_Run(void)
                 if (pos > 0)
                 {
                     pos--;
-                    printf("%c", '\b');   // putc handles backspace
+                    printf("%c", '\b');
                 }
                 continue;
             }
             if (pos < LINE_MAX - 1)
             {
                 line[pos++] = c;
-                printf("%c", c);          // echo
+                printf("%c", c);
             }
         }
 

@@ -9,6 +9,7 @@
 #include "pmm.h"
 #include "shell.h"
 #include "status_bar.h"
+#include "scheduler.h"
 
 extern uint8_t __bss_start;
 extern uint8_t __end;
@@ -26,6 +27,12 @@ void __attribute__((section(".entry"))) start(BootParams* bootParams)
     clrscr();
     StatusBar_Initialize();
     PMM_Initialize(&bootParams->memory);
+
+    // Scheduler ready but not enabled: this code (shell) becomes task 0,
+    // no other tasks yet, so PIT_Handler -> Scheduler_OnTimer is a no-op
+    // until 'multi' command creates more tasks and calls Scheduler_Start.
+    Scheduler_Initialize();
+    Scheduler_CreateKernelTask();
 
     printf("\r\ndhokaOS ready!\r\n");
     Shell_Run();

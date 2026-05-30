@@ -5,6 +5,12 @@
 
 ISRHandler g_ISRHandlers[256];
 
+// Scheduler hook: set by Scheduler_OnTimer when a task switch is desired.
+// Reset to NULL on every ISR entry so it doesn't bleed across interrupts.
+// Definition lives here so the asm stub's call into i686_ISR_Handler can
+// trivially return it via eax. Declared extern in scheduler.h.
+Registers* g_SchedulerNextTask = NULL;
+
 static const char* const g_Exceptions[] = {
     "Divide by zero",
     "Debug",
@@ -38,9 +44,13 @@ static const char* const g_Exceptions[] = {
 // forward declaration — implemented in generated C file (Phase 2)
 void i686_ISR_InitializeGates();
 
-// called from assembly (isr_common)
-void __attribute__((cdecl)) i686_ISR_Handler(Registers* regs)
+// called from assembly (isr_common). Returns the Registers* to restore.
+// Almost always the same pointer it was passed; the scheduler can replace
+// it via g_SchedulerNextTask to do a context switch.
+Registers* __attribute__((cdecl)) i686_ISR_Handler(Registers* regs)
 {
+    g_SchedulerNextTask = NULL;
+
     if (g_ISRHandlers[regs->interrupt] != NULL)
     {
         g_ISRHandlers[regs->interrupt](regs);
@@ -62,6 +72,13 @@ void __attribute__((cdecl)) i686_ISR_Handler(Registers* regs)
 
         i686_Panic();
     }
+
+    // If a handler in the chain (Scheduler_OnTimer) asked for a switch,
+    // hand back the new task's saved stack. Otherwise resume current task.
+    if (g_SchedulerNextTask != NULL)
+        return g_SchedulerNextTask;
+
+    return regs;
 }
 
 void i686_ISR_Initialize()

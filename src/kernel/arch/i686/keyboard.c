@@ -51,6 +51,7 @@ static void Buffer_Push(char c)
 // =====================================================
 
 static bool g_ShiftPressed = false;
+static bool g_CtrlPressed  = false;
 static bool g_CapsLock     = false;
 
 // =====================================================
@@ -68,6 +69,8 @@ static void Keyboard_Handler(Registers* regs)
         uint8_t released = scancode & 0x7F;
         if (released == 0x2A || released == 0x36)   // shift released
             g_ShiftPressed = false;
+        if (released == 0x1D)                       // left ctrl released
+            g_CtrlPressed = false;
         return;
     }
 
@@ -77,6 +80,10 @@ static void Keyboard_Handler(Registers* regs)
         case 0x2A:  // left shift
         case 0x36:  // right shift
             g_ShiftPressed = true;
+            return;
+
+        case 0x1D:  // left ctrl
+            g_CtrlPressed = true;
             return;
 
         case 0x3A:  // caps lock toggle (single-shot on press)
@@ -91,7 +98,11 @@ static void Keyboard_Handler(Registers* regs)
         char upper = g_ScanCodeUpper[scancode];
         char c;
 
-        if (g_ShiftPressed)
+        // Ctrl+letter emits the matching ASCII control code (Ctrl+A=0x01..Ctrl+Z=0x1A).
+        // Specifically Ctrl+C = 0x03 (ETX) - used by the shell's 'multi' command.
+        if (g_CtrlPressed && lower >= 'a' && lower <= 'z')
+            c = (char)(lower - 'a' + 1);
+        else if (g_ShiftPressed)
             c = upper;
         else if (g_CapsLock && lower >= 'a' && lower <= 'z')
             c = upper;      // caps lock only affects letters

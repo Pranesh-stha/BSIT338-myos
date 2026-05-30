@@ -2,6 +2,7 @@
 #include "io.h"
 #include "irq.h"
 #include "status_bar.h"
+#include "scheduler.h"
 
 #define PIT_CHANNEL0_DATA   0x40
 #define PIT_COMMAND         0x43
@@ -11,9 +12,9 @@ static volatile uint64_t g_Ticks = 0;
 
 static void PIT_Handler(Registers* regs)
 {
-    (void)regs;
     g_Ticks++;
     StatusBar_OnTick(g_Ticks);
+    Scheduler_OnTimer(regs);    // may set g_SchedulerNextTask to switch
 }
 
 void i686_PIT_Initialize()

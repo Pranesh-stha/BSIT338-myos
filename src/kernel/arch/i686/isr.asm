@@ -43,7 +43,11 @@ isr_common:
 
     push esp            ; pass pointer to Registers struct as argument
     call i686_ISR_Handler
-    add esp, 4          ; remove argument from stack
+    ; i686_ISR_Handler now returns a Registers* (eax). Normally same as
+    ; what we passed in; when the scheduler decides to context-switch,
+    ; eax points at a DIFFERENT task's saved Registers frame. The pop+
+    ; popa+iret sequence below then restores that task and resumes it.
+    mov esp, eax
 
     pop eax             ; restore data segment
     mov ds, ax
