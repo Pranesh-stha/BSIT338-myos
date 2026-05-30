@@ -8,11 +8,12 @@
 // ============================================================
 #define SCREEN_WIDTH  80
 #define SCREEN_HEIGHT 25
+#define SCREEN_TOP    2             // rows 0-1 reserved for status bar
 #define DEFAULT_COLOR 0x07          // light gray on black
 
 static uint8_t* g_ScreenBuffer = (uint8_t*)0xB8000;
 static int      g_ScreenX     = 0;
-static int      g_ScreenY     = 0;
+static int      g_ScreenY     = SCREEN_TOP;
 
 
 // ============================================================
@@ -61,21 +62,23 @@ static void setcursor(int x, int y)
 // ============================================================
 void clrscr(void)
 {
-    for (int y = 0; y < SCREEN_HEIGHT; y++) {
+    // Only the text-area rows; leave the status bar rows alone.
+    for (int y = SCREEN_TOP; y < SCREEN_HEIGHT; y++) {
         for (int x = 0; x < SCREEN_WIDTH; x++) {
             putchr(x, y, '\0');
             putcolor(x, y, DEFAULT_COLOR);
         }
     }
     g_ScreenX = 0;
-    g_ScreenY = 0;
+    g_ScreenY = SCREEN_TOP;
     setcursor(g_ScreenX, g_ScreenY);
 }
 
 void scrollback(int lines)
 {
-    // Move everything up by `lines` rows
-    for (int y = lines; y < SCREEN_HEIGHT; y++) {
+    // Shift rows [SCREEN_TOP+lines .. SCREEN_HEIGHT) up by `lines`.
+    // Rows [0 .. SCREEN_TOP) are reserved for the status bar and never move.
+    for (int y = SCREEN_TOP + lines; y < SCREEN_HEIGHT; y++) {
         for (int x = 0; x < SCREEN_WIDTH; x++) {
             putchr(x, y - lines, getchr(x, y));
             putcolor(x, y - lines, getcolor(x, y));

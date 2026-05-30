@@ -11,5 +11,6 @@ void  PMM_Initialize(MemoryInfo* memoryInfo);
 void* PMM_AllocateBlock();
 void  PMM_FreeBlock(void* ptr);
 bool  PMM_IsBlockFree(void* ptr);
+void  PMM_PrintStats(void);
 
 #endif

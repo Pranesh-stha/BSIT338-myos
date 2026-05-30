@@ -198,3 +198,12 @@ bool PMM_IsBlockFree(void* ptr)
     if (block >= g_TotalBlocks) return false;
     return !PMM_TestBlock(block);
 }
+
+void PMM_PrintStats(void)
+{
+    printf("PMM: %lu blocks total, %lu used, %lu free (%lu KB free)\r\n",
+        g_TotalBlocks,
+        g_UsedBlocks,
+        g_TotalBlocks - g_UsedBlocks,
+        (g_TotalBlocks - g_UsedBlocks) * (PMM_BLOCK_SIZE / 1024));
+}
