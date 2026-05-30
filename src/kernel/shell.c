@@ -1,6 +1,7 @@
 #include "shell.h"
 #include "stdint.h"
 #include "stdio.h"
+#include "arch/i686/io.h"
 #include "arch/i686/keyboard.h"
 #include "arch/i686/mouse.h"
 #include "arch/i686/pit.h"
@@ -312,6 +313,70 @@ static void cmd_mouse(void)
     set_color(VGA_DEFAULT);
 }
 
+// Returns 1 if `s` begins with `prefix`; same arg list as strncmp != 0.
+static int starts_with(const char* s, const char* prefix)
+{
+    while (*prefix)
+    {
+        if (*s != *prefix) return 0;
+        s++; prefix++;
+    }
+    return 1;
+}
+
+static void cmd_timer(int total_sec)
+{
+    set_color(VGA_COLOR(COLOR_YELLOW, COLOR_BLACK));
+    printf("Timer: %d seconds. Ctrl+C to cancel.\r\n", total_sec);
+    set_color(VGA_DEFAULT);
+
+    for (int remaining = total_sec; remaining > 0; remaining--)
+    {
+        int mins = remaining / 60;
+        int secs = remaining % 60;
+
+        set_color(VGA_COLOR(COLOR_LIGHT_CYAN, COLOR_BLACK));
+        printf("\r  %02d:%02d remaining...   ", mins, secs);
+        set_color(VGA_DEFAULT);
+
+        // Sleep 1 second in 100 ms slices so Ctrl+C is responsive.
+        for (int i = 0; i < 10; i++)
+        {
+            i686_PIT_Sleep(100);
+            if (i686_Keyboard_HasKey())
+            {
+                char c = i686_Keyboard_GetChar();
+                if (c == 0x03)
+                {
+                    set_color(VGA_COLOR(COLOR_YELLOW, COLOR_BLACK));
+                    printf("\r\n^C  Timer cancelled.\r\n");
+                    set_color(VGA_DEFAULT);
+                    return;
+                }
+                // other keys: discard
+            }
+        }
+    }
+
+    set_color(VGA_COLOR(COLOR_LIGHT_GREEN, COLOR_BLACK));
+    printf("\r  00:00 - DONE!                  \r\n");
+    set_color(VGA_DEFAULT);
+
+    // Alarm: 3 short beeps
+    for (int i = 0; i < 3; i++)
+    {
+        Speaker_Beep(1000, 200);
+        i686_PIT_Sleep(150);
+    }
+}
+
+static void cmd_timer_usage(void)
+{
+    set_color(VGA_COLOR(COLOR_LIGHT_RED, COLOR_BLACK));
+    printf("usage: timer <seconds>   (e.g. 'timer 30' or 'timer 5*60')\r\n");
+    set_color(VGA_DEFAULT);
+}
+
 static void cmd_beep(void)
 {
     set_color(VGA_COLOR(COLOR_YELLOW, COLOR_BLACK));
@@ -346,6 +411,28 @@ static void cmd_snake(void)
     set_color(VGA_DEFAULT);
 }
 
+static void cmd_quit(void)
+{
+    set_color(VGA_COLOR(COLOR_YELLOW, COLOR_BLACK));
+    printf("Shutting down dhokaOS...\r\n");
+    set_color(VGA_DEFAULT);
+
+    // Brief beep so the user gets feedback even if the screen vanishes.
+    Speaker_Beep(660, 120);
+    i686_PIT_Sleep(120);
+
+    // ACPI shutdown ports for common hypervisors. The host kills the VM
+    // immediately on a successful write; whichever one works first wins.
+    i686_outw(0x0604, 0x2000);   // QEMU 2.0+
+    i686_outw(0xB004, 0x2000);   // Bochs / older QEMU
+    i686_outw(0x4004, 0x3400);   // VirtualBox
+
+    // If we're still here, the host didn't accept any of those. Halt the
+    // CPU forever so we don't return to a confused shell.
+    i686_DisableInterrupts();
+    for (;;) __asm__ volatile ("hlt");
+}
+
 static void cmd_help(void)
 {
     set_color(VGA_COLOR(COLOR_LIGHT_CYAN, COLOR_BLACK));
@@ -360,8 +447,11 @@ static void cmd_help(void)
     printf("  snake   - play snake (WASD to move, Ctrl+C to quit)\r\n");
     printf("  beep    - short PC-speaker beep\r\n");
     printf("  melody  - play a short tune through the PC speaker\r\n");
+    printf("  timer N - countdown for N seconds, then 3 alarm beeps\r\n");
+    printf("              N can be an expression (e.g. timer 5*60)\r\n");
     printf("  clear   - clear the screen\r\n");
     printf("  help    - this message\r\n");
+    printf("  quit    - shut down (also: exit, shutdown)\r\n");
     printf("\r\n");
     printf("Math: type any expression to evaluate. Supports +-*/%% and ().\r\n");
     printf("Examples:  6-1   |   (5+9)-6   |   2+3*4   |   100/3   |   17%%5\r\n");
@@ -376,6 +466,18 @@ static void exec(const char* line)
     // Math first - if it parses as an expression, evaluate and print.
     if (looks_like_math(line)) { try_math(line);  return; }
 
+    // Commands that take args go before the bare-word matches.
+    if (starts_with(line, "timer "))
+    {
+        const char* arg = line + 6;
+        while (*arg == ' ') arg++;
+        int sec;
+        if (Expr_Eval(arg, &sec) != EXPR_OK || sec <= 0) { cmd_timer_usage(); return; }
+        cmd_timer(sec);
+        return;
+    }
+    if (streq(line, "timer"))  { cmd_timer_usage(); return; }
+
     if (streq(line, "time"))   { cmd_time();   return; }
     if (streq(line, "mem"))    { cmd_mem();    return; }
     if (streq(line, "multi"))  { cmd_multi();  return; }
@@ -387,6 +489,9 @@ static void exec(const char* line)
     if (streq(line, "melody")) { cmd_melody(); return; }
     if (streq(line, "clear"))  { clrscr();     return; }
     if (streq(line, "help"))   { cmd_help();   return; }
+    if (streq(line, "quit")     ||
+        streq(line, "exit")     ||
+        streq(line, "shutdown")) { cmd_quit(); return; }
 
     set_color(VGA_COLOR(COLOR_LIGHT_RED, COLOR_BLACK));
     printf("unknown command: %s  (type 'help')\r\n", line);
