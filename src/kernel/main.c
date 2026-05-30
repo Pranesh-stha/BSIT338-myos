@@ -4,6 +4,7 @@
 #include "hal/hal.h"
 #include "arch/i686/irq.h"
 #include "arch/i686/keyboard.h"
+#include "arch/i686/mouse.h"
 #include "arch/i686/pit.h"
 #include "boot/bootparams.h"
 #include "pmm.h"
@@ -21,6 +22,7 @@ void __attribute__((section(".entry"))) start(BootParams* bootParams)
     // Register IRQ handlers (and program the PIT) before HAL_Initialize STIs.
     i686_PIT_Initialize();
     i686_Keyboard_Initialize();
+    i686_Mouse_Initialize();
 
     HAL_Initialize();
 

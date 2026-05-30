@@ -2,6 +2,7 @@
 #include "stdint.h"
 #include "stdio.h"
 #include "arch/i686/keyboard.h"
+#include "arch/i686/mouse.h"
 #include "arch/i686/pit.h"
 #include "pmm.h"
 #include "scheduler.h"
@@ -95,12 +96,54 @@ static void cmd_multi(void)
     printf("\r\n^C  Demo stopped.\r\n");
 }
 
+static void cmd_mouse(void)
+{
+    printf("Move the mouse / click buttons. Ctrl+C to stop.\r\n");
+    printf("(QEMU window must have focus - if cursor is stolen,\r\n");
+    printf(" press Ctrl+Alt+G to release it back to the host.)\r\n\r\n");
+
+    int32_t lastX = -1, lastY = -1;
+    bool    lastL = false, lastR = false, lastM = false;
+
+    for (;;)
+    {
+        if (i686_Keyboard_HasKey())
+        {
+            char c = i686_Keyboard_GetChar();
+            if (c == CTRL_C) break;
+        }
+
+        MouseState ms = i686_Mouse_GetState();
+
+        if (ms.x != lastX || ms.y != lastY ||
+            ms.leftButton   != lastL ||
+            ms.rightButton  != lastR ||
+            ms.middleButton != lastM)
+        {
+            printf("\rX:%3d Y:%3d  L:%d M:%d R:%d   ",
+                   ms.x, ms.y,
+                   ms.leftButton, ms.middleButton, ms.rightButton);
+
+            lastX = ms.x; lastY = ms.y;
+            lastL = ms.leftButton;
+            lastR = ms.rightButton;
+            lastM = ms.middleButton;
+        }
+    }
+
+    while (i686_Keyboard_HasKey())
+        i686_Keyboard_GetChar();
+
+    printf("\r\n^C  Mouse watch stopped.\r\n");
+}
+
 static void cmd_help(void)
 {
     printf("Commands:\r\n");
     printf("  time   - 5-second PIT timer test\r\n");
     printf("  mem    - print PMM stats\r\n");
     printf("  multi  - multitasking demo (A/B/C tasks, Ctrl+C to stop)\r\n");
+    printf("  mouse  - live mouse coords + buttons (Ctrl+C to stop)\r\n");
     printf("  clear  - clear the screen\r\n");
     printf("  help   - this message\r\n");
 }
@@ -111,6 +154,7 @@ static void exec(const char* line)
     if (streq(line, "time"))   { cmd_time();  return; }
     if (streq(line, "mem"))    { cmd_mem();   return; }
     if (streq(line, "multi"))  { cmd_multi(); return; }
+    if (streq(line, "mouse"))  { cmd_mouse(); return; }
     if (streq(line, "clear"))  { clrscr();    return; }
     if (streq(line, "help"))   { cmd_help();  return; }
     printf("unknown command: %s  (type 'help')\r\n", line);
