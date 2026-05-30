@@ -14,6 +14,7 @@
 static uint8_t* g_ScreenBuffer = (uint8_t*)0xB8000;
 static int      g_ScreenX     = 0;
 static int      g_ScreenY     = SCREEN_TOP;
+static uint8_t  g_TextColor   = DEFAULT_COLOR;
 
 
 // ============================================================
@@ -123,11 +124,13 @@ void putc(char c)
             if (g_ScreenX > 0) {
                 g_ScreenX--;
                 putchr(g_ScreenX, g_ScreenY, ' ');
+                putcolor(g_ScreenX, g_ScreenY, g_TextColor);
             }
             break;
 
         default:
             putchr(g_ScreenX, g_ScreenY, c);
+            putcolor(g_ScreenX, g_ScreenY, g_TextColor);
             g_ScreenX++;
             break;
     }
@@ -151,6 +154,40 @@ void puts(const char* str)
         putc(*str);
         str++;
     }
+}
+
+// =====================================================
+// Public color + direct-VGA API (used by shell, status bar,
+// matrix rain, mandelbrot, mouse cursor)
+// =====================================================
+
+void set_color(uint8_t color)
+{
+    g_TextColor = color;
+}
+
+uint8_t get_color(void)
+{
+    return g_TextColor;
+}
+
+void vga_put_cell(int x, int y, char c, uint8_t color)
+{
+    if (x < 0 || x >= SCREEN_WIDTH || y < 0 || y >= SCREEN_HEIGHT) return;
+    g_ScreenBuffer[2 * (y * SCREEN_WIDTH + x)]     = (uint8_t)c;
+    g_ScreenBuffer[2 * (y * SCREEN_WIDTH + x) + 1] = color;
+}
+
+uint8_t vga_get_color(int x, int y)
+{
+    if (x < 0 || x >= SCREEN_WIDTH || y < 0 || y >= SCREEN_HEIGHT) return 0;
+    return g_ScreenBuffer[2 * (y * SCREEN_WIDTH + x) + 1];
+}
+
+void vga_set_color(int x, int y, uint8_t color)
+{
+    if (x < 0 || x >= SCREEN_WIDTH || y < 0 || y >= SCREEN_HEIGHT) return;
+    g_ScreenBuffer[2 * (y * SCREEN_WIDTH + x) + 1] = color;
 }
 
 

@@ -11,6 +11,7 @@
 #include "shell.h"
 #include "status_bar.h"
 #include "scheduler.h"
+#include "boot_logo.h"
 
 extern uint8_t __bss_start;
 extern uint8_t __end;
@@ -36,6 +37,6 @@ void __attribute__((section(".entry"))) start(BootParams* bootParams)
     Scheduler_Initialize();
     Scheduler_CreateKernelTask();
 
-    printf("\r\ndhokaOS ready!\r\n");
+    BootLogo_Show();
     Shell_Run();
 }
