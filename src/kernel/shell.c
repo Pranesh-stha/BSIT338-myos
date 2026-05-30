@@ -4,6 +4,7 @@
 #include "arch/i686/keyboard.h"
 #include "arch/i686/mouse.h"
 #include "arch/i686/pit.h"
+#include "arch/i686/speaker.h"
 #include "pmm.h"
 #include "scheduler.h"
 #include "matrix.h"
@@ -55,6 +56,65 @@ static void try_math(const char* line)
     else
         printf("math error: invalid expression\r\n");
     set_color(VGA_DEFAULT);
+}
+
+// =====================================================
+// Command history (ring buffer of recent lines)
+// =====================================================
+
+#define HISTORY_SIZE 16
+
+static char g_History[HISTORY_SIZE][LINE_MAX];
+static int  g_HistCount = 0;       // number of entries stored (<= HISTORY_SIZE)
+static int  g_HistHead  = 0;       // next-write index; (head-1) = newest
+
+static void history_save(const char* line)
+{
+    if (line[0] == 0) return;       // skip empties
+
+    // Skip if same as last (no duplicate adjacents).
+    if (g_HistCount > 0)
+    {
+        int last = (g_HistHead - 1 + HISTORY_SIZE) % HISTORY_SIZE;
+        if (streq(g_History[last], line)) return;
+    }
+
+    int i = 0;
+    while (line[i] && i < LINE_MAX - 1)
+    {
+        g_History[g_HistHead][i] = line[i];
+        i++;
+    }
+    g_History[g_HistHead][i] = 0;
+
+    g_HistHead = (g_HistHead + 1) % HISTORY_SIZE;
+    if (g_HistCount < HISTORY_SIZE) g_HistCount++;
+}
+
+// offset 0 = newest entry, offset (count-1) = oldest. NULL if out of range.
+static const char* history_get(int offset)
+{
+    if (offset < 0 || offset >= g_HistCount) return NULL;
+    int idx = (g_HistHead - 1 - offset + HISTORY_SIZE * 2) % HISTORY_SIZE;
+    return g_History[idx];
+}
+
+// Erase whatever is currently echoed for the line buffer and replace it
+// (both in line[] and on screen) with `new_line`. Updates *pos.
+static void replace_line(char line[LINE_MAX], int* pos, const char* new_line)
+{
+    for (int i = 0; i < *pos; i++) printf("%c", '\b');
+
+    *pos = 0;
+    if (new_line == NULL) { line[0] = 0; return; }
+
+    while (new_line[*pos] && *pos < LINE_MAX - 1)
+    {
+        line[*pos] = new_line[*pos];
+        printf("%c", new_line[*pos]);
+        (*pos)++;
+    }
+    line[*pos] = 0;
 }
 
 // =====================================================
@@ -252,6 +312,22 @@ static void cmd_mouse(void)
     set_color(VGA_DEFAULT);
 }
 
+static void cmd_beep(void)
+{
+    set_color(VGA_COLOR(COLOR_YELLOW, COLOR_BLACK));
+    printf("beep!\r\n");
+    set_color(VGA_DEFAULT);
+    Speaker_Beep(880, 150);     // 880 Hz (A5) for 150 ms
+}
+
+static void cmd_melody(void)
+{
+    set_color(VGA_COLOR(COLOR_YELLOW, COLOR_BLACK));
+    printf("Playing melody (no audio? See README for QEMU sound flags.)\r\n");
+    set_color(VGA_DEFAULT);
+    Speaker_PlayMelody();
+}
+
 static void cmd_snake(void)
 {
     set_color(VGA_COLOR(COLOR_LIGHT_GREEN, COLOR_BLACK));
@@ -282,11 +358,15 @@ static void cmd_help(void)
     printf("  matrix  - falling-text screensaver (Ctrl+C to stop)\r\n");
     printf("  mandel  - render Mandelbrot set; press any key to dismiss\r\n");
     printf("  snake   - play snake (WASD to move, Ctrl+C to quit)\r\n");
+    printf("  beep    - short PC-speaker beep\r\n");
+    printf("  melody  - play a short tune through the PC speaker\r\n");
     printf("  clear   - clear the screen\r\n");
     printf("  help    - this message\r\n");
     printf("\r\n");
     printf("Math: type any expression to evaluate. Supports +-*/%% and ().\r\n");
     printf("Examples:  6-1   |   (5+9)-6   |   2+3*4   |   100/3   |   17%%5\r\n");
+    printf("\r\n");
+    printf("Line editing: use Up/Down arrows to recall previous commands.\r\n");
 }
 
 static void exec(const char* line)
@@ -303,6 +383,8 @@ static void exec(const char* line)
     if (streq(line, "matrix")) { cmd_matrix(); return; }
     if (streq(line, "mandel")) { cmd_mandel(); return; }
     if (streq(line, "snake"))  { cmd_snake();  return; }
+    if (streq(line, "beep"))   { cmd_beep();   return; }
+    if (streq(line, "melody")) { cmd_melody(); return; }
     if (streq(line, "clear"))  { clrscr();     return; }
     if (streq(line, "help"))   { cmd_help();   return; }
 
@@ -332,6 +414,7 @@ void Shell_Run(void)
         set_color(VGA_DEFAULT);
 
         pos = 0;
+        int hist_offset = -1;       // -1 = the user's own input, 0+ = history
 
         for (;;)
         {
@@ -341,6 +424,7 @@ void Shell_Run(void)
             {
                 printf("\r\n");
                 line[pos] = 0;
+                history_save(line);
                 break;
             }
             if (c == '\b')
@@ -352,7 +436,34 @@ void Shell_Run(void)
                 }
                 continue;
             }
-            if (pos < LINE_MAX - 1)
+            if (c == KEY_UP)
+            {
+                if (hist_offset + 1 < g_HistCount)
+                {
+                    hist_offset++;
+                    replace_line(line, &pos, history_get(hist_offset));
+                }
+                continue;
+            }
+            if (c == KEY_DOWN)
+            {
+                if (hist_offset > 0)
+                {
+                    hist_offset--;
+                    replace_line(line, &pos, history_get(hist_offset));
+                }
+                else if (hist_offset == 0)
+                {
+                    hist_offset = -1;
+                    replace_line(line, &pos, "");
+                }
+                continue;
+            }
+            if (c == KEY_LEFT || c == KEY_RIGHT)
+                continue;       // mid-line editing not implemented
+
+            // Only accept printable characters into the buffer.
+            if (pos < LINE_MAX - 1 && c >= 0x20 && c < 0x7F)
             {
                 line[pos++] = c;
                 printf("%c", c);

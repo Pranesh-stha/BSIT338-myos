@@ -50,9 +50,10 @@ static void Buffer_Push(char c)
 // Modifier state
 // =====================================================
 
-static bool g_ShiftPressed = false;
-static bool g_CtrlPressed  = false;
-static bool g_CapsLock     = false;
+static bool g_ShiftPressed   = false;
+static bool g_CtrlPressed    = false;
+static bool g_CapsLock       = false;
+static bool g_ExtendedPrefix = false;   // last byte was 0xE0
 
 // =====================================================
 // IRQ1 handler
@@ -62,6 +63,28 @@ static void Keyboard_Handler(Registers* regs)
 {
     (void)regs;
     uint8_t scancode = i686_inb(KEYBOARD_DATA_PORT);
+
+    // Extended scancode prefix: the next byte names an extended key
+    // (arrow keys, right-side ctrl, etc.).
+    if (scancode == 0xE0)
+    {
+        g_ExtendedPrefix = true;
+        return;
+    }
+
+    if (g_ExtendedPrefix)
+    {
+        g_ExtendedPrefix = false;
+        if (scancode & 0x80) return;        // ignore extended releases
+        switch (scancode)
+        {
+            case 0x48: Buffer_Push(KEY_UP);    return;
+            case 0x50: Buffer_Push(KEY_DOWN);  return;
+            case 0x4B: Buffer_Push(KEY_LEFT);  return;
+            case 0x4D: Buffer_Push(KEY_RIGHT); return;
+        }
+        return;
+    }
 
     // --- Key RELEASE (bit 7 set) ---
     if (scancode & 0x80)

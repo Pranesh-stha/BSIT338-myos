@@ -62,3 +62,10 @@ clean:
 #
 run: floppy_image
 	qemu-system-i386 -fda $(BUILD_DIR)/main_floppy.img
+
+# Same, but route PC-speaker output through PulseAudio so the
+# `beep` / `melody` commands are audible. Requires QEMU built with PA
+# support and a working host audio setup (WSLg provides one).
+run-sound: floppy_image
+	qemu-system-i386 -audiodev pa,id=snd0 -machine pcspk-audiodev=snd0 \
+		-fda $(BUILD_DIR)/main_floppy.img
