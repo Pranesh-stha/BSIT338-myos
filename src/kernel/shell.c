@@ -9,6 +9,7 @@
 #include "matrix.h"
 #include "mandel.h"
 #include "snake.h"
+#include "expr.h"
 
 #define LINE_MAX 128
 #define CTRL_C   0x03
@@ -22,6 +23,38 @@ static int streq(const char* a, const char* b)
 {
     while (*a && *b && *a == *b) { a++; b++; }
     return *a == 0 && *b == 0;
+}
+
+// A line "looks like math" if its first non-whitespace char is a digit,
+// '(', or a leading +/-. Anything else (letters etc.) is a command.
+static int looks_like_math(const char* s)
+{
+    while (*s == ' ' || *s == '\t') s++;
+    if (*s == 0) return 0;
+    if (*s == '(' || *s == '-' || *s == '+') return 1;
+    if (*s >= '0' && *s <= '9') return 1;
+    return 0;
+}
+
+static void try_math(const char* line)
+{
+    int result;
+    ExprError err = Expr_Eval(line, &result);
+
+    if (err == EXPR_OK)
+    {
+        set_color(VGA_COLOR(COLOR_LIGHT_GREEN, COLOR_BLACK));
+        printf("= %d\r\n", result);
+        set_color(VGA_DEFAULT);
+        return;
+    }
+
+    set_color(VGA_COLOR(COLOR_LIGHT_RED, COLOR_BLACK));
+    if (err == EXPR_DIV_ZERO)
+        printf("math error: division by zero\r\n");
+    else
+        printf("math error: invalid expression\r\n");
+    set_color(VGA_DEFAULT);
 }
 
 // =====================================================
@@ -251,11 +284,18 @@ static void cmd_help(void)
     printf("  snake   - play snake (WASD to move, Ctrl+C to quit)\r\n");
     printf("  clear   - clear the screen\r\n");
     printf("  help    - this message\r\n");
+    printf("\r\n");
+    printf("Math: type any expression to evaluate. Supports +-*/%% and ().\r\n");
+    printf("Examples:  6-1   |   (5+9)-6   |   2+3*4   |   100/3   |   17%%5\r\n");
 }
 
 static void exec(const char* line)
 {
     if (line[0] == 0)            return;
+
+    // Math first - if it parses as an expression, evaluate and print.
+    if (looks_like_math(line)) { try_math(line);  return; }
+
     if (streq(line, "time"))   { cmd_time();   return; }
     if (streq(line, "mem"))    { cmd_mem();    return; }
     if (streq(line, "multi"))  { cmd_multi();  return; }
